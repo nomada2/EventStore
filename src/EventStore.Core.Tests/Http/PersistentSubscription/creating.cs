@@ -1,6 +1,8 @@
 ﻿using System.Net;
 using EventStore.Core.Tests.Http.Users.users;
 using NUnit.Framework;
+using System.Collections.Generic;
+using System;
 
 namespace EventStore.Core.Tests.Http.PersistentSubscription
 {
@@ -91,6 +93,51 @@ namespace EventStore.Core.Tests.Http.PersistentSubscription
         public void returns_created_status_code()
         {
             Assert.AreEqual(HttpStatusCode.Conflict, _response.StatusCode);
+        }
+    }
+
+    [TestFixture, Category("LongRunning")]
+    class when_creating_a_subscription_with_bad_config : with_admin_user
+    {
+        protected List<object> Events;
+        protected string SubscriptionPath;
+        protected string GroupName;
+        protected HttpWebResponse Response;
+        protected override void Given()
+        {
+            Events = new List<object>
+            {
+                new {EventId = Guid.NewGuid(), EventType = "event-type", Data = new {A = "1"}},
+                new {EventId = Guid.NewGuid(), EventType = "event-type", Data = new {B = "2"}},
+                new {EventId = Guid.NewGuid(), EventType = "event-type", Data = new {C = "3"}},
+                new {EventId = Guid.NewGuid(), EventType = "event-type", Data = new {D = "4"}}
+            };
+
+            Response = MakeArrayEventsPost(
+                         TestStream,
+                         Events,
+                         _admin);
+            Assert.AreEqual(HttpStatusCode.Created, Response.StatusCode);
+        }
+        protected override void When()
+        {
+
+            GroupName = Guid.NewGuid().ToString();
+            SubscriptionPath = string.Format("/subscriptions/{0}/{1}", TestStream.Substring(9), GroupName);
+            Response = MakeJsonPut(SubscriptionPath,
+                new
+                {
+                    ResolveLinkTos = true,
+                    BufferSize = 10,
+                    ReadBatchSize = 11
+                },
+                _admin);
+        }
+
+        [Test]
+        public void returns_bad_request()
+        {
+            Assert.AreEqual(HttpStatusCode.BadRequest, Response.StatusCode);
         }
     }
 }
